@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<title>SVNコミットログをCSV形式に変換するツールっぽいもの</title>
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+</head>
+<body>
+
+	<p>SVNコミットログ</p>
+	<textarea name="svnCommitLogTextarea" rows="12" style="width: 100%;" placeholder=
+"ここに下記のようなSVNコミットログを貼り付けてください(TortoiseSVN の履歴を複数選択してコピーしたもの)
+
+リビジョン: 55974
+作者: t-username
+日時: 2017年2月2日 21:09:41
+メッセージ:
+オンライン　junit テスト実装
+----
+追加 : /branches/src/tset/java/AaaTest.java
+更新 : /branches/src/tset/java/BbbTest.java"></textarea>
+	<p>
+		<input type="button" value="CSV形式(カンマ区切り)で変換" onclick="convert(',');">
+		<input type="button" value="TSV形式(タブ区切り)で変換" onclick="convert('\t');">
+		<input type="button" value="クリア" onclick="clearInput();">
+	</p>
+	<p>結果</p>
+	<textarea name="svnCommitLogCsvTextarea" rows="12" style="width: 100%;"></textarea>
+
+	<script>
+		/**
+		 * SVNコミットログ貼り付けエリアをクリア.
+		 */
+		function clearInput() {
+			$('[name=svnCommitLogTextarea]').val("");
+		}
+
+		/**
+		 * SVNコミットログをCSV/TSV形式に変換.
+		 */
+		function convert(separator) {
+			var commitLog = $('[name=svnCommitLogTextarea]').val();
+			if (!commitLog) {
+				alert("Svnコミットログを貼り付けてください。");
+				return;
+			}
+
+			var commitLogs = commitLog.split('\n');
+			var results = [];		// 結果
+			var line = "";			// csv1行分を保持
+			var dataType = 0;		// データ区分(0=リビジョン, 1=作者, 2=日時, 3=メッセージ, 4=メッセージ本文, 5=更新されたソース)
+			results.push('リビジョン' + separator + '作者' + separator + '日時' + separator + 'メッセージ' + separator + 'ソース');
+			for (var i = 0; i < commitLogs.length; i++) {
+				// ※データ形式sample
+				// ---ここから---
+				// リビジョン: 55974
+				// 作者: t-username
+				// 日時: 2017年2月2日 21:09:41
+				// メッセージ:
+				// オンライン　junit テスト実装
+				// ----
+				// 追加 : /branches/src/tset/java/AaaTest.java
+				// 更新 : /branches/src/tset/java/BbbTest.java"
+				// 
+				// リビジョン: 55973
+				// (以下略)
+
+				var word = commitLogs[i];
+
+				// 改行のみの行の場合、データの終わり
+				if (!word) {
+					if (!line && line.length > 0) results.push(line);
+					line = "";
+					dataType = 0;
+					continue;
+				}
+
+				// リビジョン取得
+				if (dataType == 0) {
+					var ret = word.replace("リビジョン: ", "");
+					line += ret;
+					dataType = 1;
+					continue;
+				}
+
+				// 作者取得
+				if (dataType == 1) {
+					var ret = word.replace("作者: ", "");
+					line += separator + ret;
+					dataType = 2;
+					continue;
+				}
+
+				// 日時取得
+				if (dataType == 2) {
+					var ret = word.replace("日時: ", "");
+					line += separator + ret;
+					dataType = 3;
+					continue;
+				}
+
+				// メッセージ取得 (2行目以降が実際のメッセージなので、データ区分切替のみ)
+				if (dataType == 3) {
+					dataType = 4;
+					continue;
+				}
+				// メッセージ取得
+				if (dataType == 4) {
+					// 複数行あるので、メッセージの終わりまでの行を取得
+					var ret = word;
+					for (i = i + 1; i < commitLogs.length; i++) {
+						// メッセージ終了行の場合ループ終了、そうでない場合はメッセージをつめる
+						var msgTemp = commitLogs[i];
+						if (msgTemp == "----") break;
+						ret += "<br>" + msgTemp;
+					}
+					line += separator + ret;
+					dataType = 5;
+					continue;
+				}
+
+				// 変更ソース取得
+				// lineがない場合、変更ソースが2つめ以降となるので、リビジョンや作者などは空で登録
+				var changeSrcline = (line && line.length > 0) 
+					? line + separator + word
+					: separator.repeat(4) + word;
+				results.push(changeSrcline);
+				line = "";
+			}
+			if (!line && line.length > 0) results.push(line);
+
+			// 結果出力
+			var result = "";
+			for(var i = 0; i < results.length; i++) {
+				result += results[i];
+				result += "\n";
+			}
+			$('[name=svnCommitLogCsvTextarea]').val(result);
+		}
+	</script>
+
+</body>
+</html>
